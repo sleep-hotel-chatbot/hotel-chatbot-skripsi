@@ -54,7 +54,7 @@ def home():
 if __name__ == '__main__':
     print("🚀 Initializing Hotel Chatbot System...")
     init_database()
-     port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 5000))
     host = '0.0.0.0'
     print(f"🌐 Server starting on {host}:{port}")
     app.run(host=host, port=port, debug=False)
