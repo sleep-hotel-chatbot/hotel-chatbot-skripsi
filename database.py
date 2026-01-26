@@ -1,63 +1,56 @@
 import os
-import logging
 
 def get_db_connection():
-    """Get database connection (SQLite for local, PostgreSQL for Railway)"""
+    """Get database connection with fallback"""
     database_url = os.environ.get('DATABASE_URL')
-
-   print(f"🔧 DATABASE_URL exists: {bool(database_url)}") 
     
-    # If no DATABASE_URL (local development), use SQLite
-    if not database_url:
-        print("📁 Using SQLite database (local development)")
-        import sqlite3
-        return sqlite3.connect('hotel_data.db'), 'sqlite'
+    print(f"🔧 Environment check - DATABASE_URL: {bool(database_url)}")
     
-    # If DATABASE_URL exists (Railway), use PostgreSQL
+    # Try PostgreSQL first (for Railway)
+    if database_url:
+        try:
+            import psycopg2
+            print("🐘 Attempting PostgreSQL connection...")
+            conn = psycopg2.connect(database_url)
+            print("✅ Connected to PostgreSQL")
+            return conn, 'postgresql'
+        except Exception as e:
+            print(f"⚠️ PostgreSQL failed: {e}")
+    
+    # Fallback to SQLite
     try:
-        import psycopg2
-         print(f"🐘 Connecting to PostgreSQL: {database_url[:30]}...")
-        # Railway requires SSL
-        conn = psycopg2.connect(database_url, sslmode='require')
-        print("✅ PostgreSQL connection successful")
-        return conn, 'postgresql'
-    except ImportError as e:
-        print(f"❌  psycopg2 import error: {e}")
         import sqlite3
-        return sqlite3.connect('hotel_data.db'), 'sqlite'
-
+        print("📁 Using SQLite fallback")
+        conn = sqlite3.connect('hotel_data.db')
+        return conn, 'sqlite'
     except Exception as e:
-        print(f"❌ PostgreSQL connection error: {e}")
-        # Fallback to SQLite
-        import sqlite3
-        return sqlite3.connect('hotel_data.db'), 'sqlite'
+        print(f"❌ SQLite also failed: {e}")
+        return None, None
 
 def init_database():
-    """Initialize database with hotel room data"""
+    """Initialize database"""
     conn, db_type = get_db_connection()
     if not conn:
-        print("❌ Failed to connect to database")
+        print("❌ Cannot connect to any database")
         return
     
     cursor = conn.cursor()
     
     try:
         if db_type == 'postgresql':
-            # PostgreSQL schema
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS rooms (
                     id SERIAL PRIMARY KEY,
-                    gender VARCHAR(10) NOT NULL,
-                    level INTEGER NOT NULL,
+                    gender VARCHAR(10),
+                    level INTEGER,
                     available INTEGER,
                     total INTEGER,
                     price INTEGER
                 )
             ''')
             
-            # Clear and insert fresh data
+            # Clear and insert
             cursor.execute('DELETE FROM rooms')
-            
             rooms_data = [
                 ('pria', 1, 3, 10, 65000),
                 ('pria', 2, 5, 15, 55000),
@@ -71,23 +64,21 @@ def init_database():
                     room
                 )
             
-            print("✅ PostgreSQL database initialized with sample data")
+            print("✅ PostgreSQL initialized")
             
         else:  # SQLite
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS rooms (
                     id INTEGER PRIMARY KEY,
-                    gender TEXT NOT NULL,
-                    level INTEGER NOT NULL,
+                    gender TEXT,
+                    level INTEGER,
                     available INTEGER,
                     total INTEGER,
                     price INTEGER
                 )
             ''')
             
-            # Clear and insert fresh data
             cursor.execute('DELETE FROM rooms')
-            
             rooms_data = [
                 (1, 'pria', 1, 3, 10, 65000),
                 (2, 'pria', 2, 5, 15, 55000),
@@ -100,20 +91,19 @@ def init_database():
                 rooms_data
             )
             
-            print("✅ SQLite database initialized with sample data")
+            print("✅ SQLite initialized")
         
         conn.commit()
         
     except Exception as e:
-        print(f"❌ Database initialization error: {e}")
+        print(f"❌ Database init error: {e}")
         conn.rollback()
-        
     finally:
         cursor.close()
         conn.close()
 
 def get_room_availability():
-    """Get all room availability data"""
+    """Get room data"""
     conn, db_type = get_db_connection()
     if not conn:
         return []
@@ -121,30 +111,21 @@ def get_room_availability():
     cursor = conn.cursor()
     
     try:
-        if db_type == 'postgresql':
-            cursor.execute('SELECT gender, level, available, total, price FROM rooms ORDER BY gender, level')
-        else:
-            cursor.execute('SELECT gender, level, available, total, price FROM rooms ORDER BY gender, level')
+        cursor.execute('SELECT gender, level, available FROM rooms ORDER BY gender, level')
+        rows = cursor.fetchall()
         
-        rooms = cursor.fetchall()
-        
-        # Format results
         result = []
-        for room in rooms:
+        for row in rows:
             result.append({
-                'gender': room[0],
-                'level': room[1],
-                'available': room[2],
-                'total': room[3],
-                'price': room[4]
+                'gender': row[0],
+                'level': row[1],
+                'available': row[2]
             })
         
         return result
-        
     except Exception as e:
-        print(f"❌ Error fetching room data: {e}")
+        print(f"❌ Query error: {e}")
         return []
-        
     finally:
         cursor.close()
         conn.close()
