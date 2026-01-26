@@ -4,27 +4,31 @@ import logging
 def get_db_connection():
     """Get database connection (SQLite for local, PostgreSQL for Railway)"""
     database_url = os.environ.get('DATABASE_URL')
+
+   print(f"🔧 DATABASE_URL exists: {bool(database_url)}") 
     
     # If no DATABASE_URL (local development), use SQLite
     if not database_url:
-        try:
-            import sqlite3
-            conn = sqlite3.connect('hotel_data.db')
-            print("📁 Using SQLite database (local development)")
-            return conn, 'sqlite'
-        except ImportError:
-            print("❌ SQLite not available")
-            return None, None
+        print("📁 Using SQLite database (local development)")
+        import sqlite3
+        return sqlite3.connect('hotel_data.db'), 'sqlite'
     
     # If DATABASE_URL exists (Railway), use PostgreSQL
     try:
         import psycopg2
+         print(f"🐘 Connecting to PostgreSQL: {database_url[:30]}...")
         # Railway requires SSL
         conn = psycopg2.connect(database_url, sslmode='require')
-        print("🐘 Using PostgreSQL database (Railway)")
+        print("✅ PostgreSQL connection successful")
         return conn, 'postgresql'
-    except ImportError:
-        print("❌ psycopg2 not installed, falling back to SQLite")
+    except ImportError as e:
+        print(f"❌  psycopg2 import error: {e}")
+        import sqlite3
+        return sqlite3.connect('hotel_data.db'), 'sqlite'
+
+    except Exception as e:
+        print(f"❌ PostgreSQL connection error: {e}")
+        # Fallback to SQLite
         import sqlite3
         return sqlite3.connect('hotel_data.db'), 'sqlite'
 
